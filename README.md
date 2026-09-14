@@ -147,4 +147,3 @@ def main():
   [Xinyuan-LilyGO/LILYGO-T-display-RP2040](https://github.com/Xinyuan-LilyGO/LILYGO-T-display-RP2040)
 - Прошивка: [MicroPython для RP2040](https://micropython.org/download/RPI_PICO/)
 - Загрузка файлов: [mpremote](https://docs.micropython.org/en/latest/reference/mpremote.html)
-- Альтернативная среда: [Thonny](https://thonny.org)
