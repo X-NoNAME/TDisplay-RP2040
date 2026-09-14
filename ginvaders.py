@@ -1,0 +1,219 @@
+# Pico Invaders - порт на LILYGO T-Display RP2040 (ST7789 240x135)
+# Оригинал: PicoRetroGamingSystem / picoinvaders.py (SSD1306 128x64), масштаб x2
+# Управление: GP6 (кнопка 1) - корабль вверх, GP7 (кнопка 2) - вниз.
+# Выстрел автоматический, как в оригинале.
+import random
+from time import sleep
+import retro
+from retro import fb, disp, WHITE, RED, GREEN, YELLOW, CYAN, ORANGE, BLACK
+
+S = 2  # масштаб
+
+btn_up = retro.A      # GP6: вверх
+btn_down = retro.B    # GP7: вниз
+
+# --- спрайты оригинала (MONO_HLSB) ---
+inv1a = b"~\xd8\x88\xf8\x88\xd8~"
+inv1b = b"|\xda\xc8\xf8\xc8\xda|"
+inv2a = b"\x88\\:\x1e:\\\x88"
+inv2b = b"\x08\\\xba\x1e\xba\\\x08"
+ship = b" p\xf8l>//>l\xf8p "
+ufo = b"\x0c\x00>\x80\x1d\x80\r\xe0\x1d\xc0\x15\x80>\x80\x0c\x00"
+
+num0 = b"\x7f\x80\xff\xc0\x80@\x80@\xff\xc0\x7f\x80"
+num1 = b"\x00\x00\x00\x80\x00\x80\xff\xc0\xff\xc0\x00\x00"
+num2 = b"\xe1\x80\xf1\xc0\x98@\x8c@\x87\xc0\x83\x80"
+num3 = b"@\x80\xc0\xc0\x84@\x84@\xff\xc0{\x80"
+num4 = b"0\x00<\x00/\x00#\x80\xff\xc0\xff\xc0"
+num5 = b"O\xc0\xcf\xc0\x84@\x84@\xfc@x@"
+num6 = b"\x7f\x80\xff\xc0\x84@\x84@\xfc\xc0x\x80"
+num7 = b"\x00@\xe0@\xfc@\x1f@\x03\xc0\x00\xc0"
+num8 = b"{\x80\xff\xc0\x84@\x84@\xff\xc0{\x80"
+num9 = b"G\x80\xcf\xc0\x88@\x88@\xff\xc0\x7f\x80"
+
+logo = bytearray(b"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x1f\xff\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x1f\xff\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x1f\xff\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x07\xbd\xe0\x00\x00\x00\x00\xff\xfc\x00\x00\x00\x00\x00\x00\x00\x07\xbd\xe0\x00\x00\x00\x00\xff\xfc\x00\x00\x00\x00\x00\x00\x00\x07\xbd\xe0\x00\x00\x00\x00\xff\xfc\x00\x00\x00\x01\xff\x80\x00\x07\xbd\xe0\x00\x00\x00\x00\x03\xe0\x00\x00\x00\x01\xff\x80\x00\x00\x00\x00\x00\x00\x00\x00\x1f\x00\x00\x00\x00\x01\x08\x80\x00\x00\x01\xef\x00\x00\x00\x00\xff\xfc\x00\x00\x00\x01\x08\x80\x00\x00\x01\xef\x00\x00\x00\x00\xff\xfc\x07\xff\xe0\x01\x08\x80\x00\x00\x01\xef\x00\x00\x00\x00\xff\xfc\x07\xff\xe0\x01\x08\x80\x00\x00\x01\xef\x00\x00\x00\x00\x00\x00\x07\xff\xe0\x01\xff\x80\x00\x00\x00\x00\x00\x00\x00\x00\x05\x00\x008\xe0\x00\xf7\x00\x00\x07\xbd\xefx\x1e\x00\x02\xff\x00\x00\x18\xe0\x00\x00\x00\x00\x07\xbd\xefx\x1e\x00?\xff\x00\x00?\xe0\x00\x0c\x00\x00\x07\xbd\xefx\x1e\x00?\xd0\x00\x00\x1f\xc0\x08<\x00\x00\x07\xbd\xefx\x1e\x00<\x00\x00\x00\x0f\x80\x0c\xf0\x00\x00\x00\x00\x00\x00\x00\x00?\xff\x00\x00\x00\x00\x07\xc0\x00\x00\xf0=\xe0{\xc0\x00?\xff\x00\x00\x00\x00\x03\xc0\x00\x00\xf0=\xe0{\xc0\x00\x00\xbf\x00\x00\x00\x00\x00\xf0\x00\x00\xf0=\xe0{\xc0\x00\x00\x00\x00\x00\x00\x00\x00<\x00\x00\xf0=\xe0{\xc0\x00\x00`\x00\x00\x00\x00\x00\x0c\x00\x00\x00\x00\x00\x00\x00\x00\x00\x7f\xc0\x07\xff\xe0\x00\x00\x00\x00\xf0=\xefx\x00\x00\x00\x7f\xfe\x07\xff\xe0\x00\x00\x00\x00\xf0=\xefx\x00\x00\x00\x1e\xfe\x07\xff\xe0\x00\x00\x00\x00\xf0=\xefx\x00\x00\x00\x18\x1e\x00\x00\x00\x00\x00\x00\x00\xf0=\xefx\x00\x00\x00?\xfe\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x7f\xfe\x00\x00\x00\x01\xff\x80\x00\x00=\xefx\x00\x00\x00\x7f\x80\x00\x00\x00\x01\xff\x80\x00\x00=\xefx\x00\x00\x00@\x00\x00\x00\x00\x00\x10\x80\x00\x00=\xefx\x00\x00\x00\x00\x00\x00\x00\x00\x00\x10\x80\x00\x00=\xefx\x00\x00?\xff\x00\x01\xff\x80\x00\x10\x80\x00\x00\x00\x00\x00\x00\x00?\xff\x00\x03\xff\xc0\x00\x10\x80\x00\xf0=\xefx\x00\x00?\xff\x00\x07\xff\xe0\x00\x1f\x80\x00\xf0=\xefx\x00\x008\x07\x00\x07\x00\xe0\x00\x0f\x00\x00\xf0=\xefx\x00\x000'\x00\x06\x00\xe0\x00\x00\x00\x00\xf0=\xefx\x00\x00?\xff\x00\x07\xe7\xe0\x01\xfc\x00\x00\x00\x00\x00\x00\x00\x00\x1f\xfe\x00\x03\xe3\xc0\x01\xfc\x00\x00\xf0=\xe0{\xc0\x00\x0f\xfc\x00\x01\xe3\x80\x00\x04\x00\x00\xf0=\xe0{\xc0\x00\x00\x00\x00\x00\x00\x00\x00\x04\x00\x00\xf0=\xe0{\xc0\x00\x00\x7f\xfe\x00\x00\x00\x01\xfc\x00\x00\xf0=\xe0{\xc0\x00\x00\x7f\xfe\x00\x00\x00\x01\xf8\x00\x00\x00\x00\x00\x00\x00\x00\x00\x7f\xfe\x00\x00\x00\x00\x00\x00\x00\x07\xbd\xefx\x1e\x00\x00q\xce\x01\xff\x80\x00\x00\x00\x00\x07\xbd\xefx\x1e\x00\x00`\xc6\x03\xff\xc0\x01\xff\x80\x00\x07\xbd\xefx\x1e\x00\x00p\x8e\x07\xff\xe0\x01\xff\x80\x00\x07\xbd\xefx\x1e\x00\x00\x00\x00\x07\x00\xe0\x00\x10\x80\x00\x00\x00\x00\x00\x00\x00\xff\xfc\x00\x06\x04\xe0\x00\x10\x80\x00\x00\x01\xef\x00\x00\x00\xff\xfc\x00\x07\xff\xe0\x00\x10\x80\x00\x00\x01\xef\x00\x00\x00\xff\xfc\x00\x03\xff\xc0\x00\x10\x80\x00\x00\x01\xef\x00\x00\x00\x03\x9c\x00\x01\xff\x80\x00\x1f\x80\x00\x00\x01\xef\x00\x00\x00\t\x9c\x00\x00\x00\x00\x00\x0f\x00\x00\x00\x00\x00\x00\x00\x00\xff\xfc\x00\x00\x00\x00\x00\x00\x00\x00\x07\xbd\xe0\x00\x00\x00\xfe\xf8\x00\x00\x00\x00\x00\x00\x00\x00\x07\xbd\xe0\x00\x00\x00\xfep\x00\x00\x00\x00\x00\x00\x00\x00\x07\xbd\xe0\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x07\xbd\xe0\x00\x00\x00\x00\x1cx\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00<\xfc\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00|\xfe\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00q\xce\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x7f\xde\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00?\x9c\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x1f\x18\x00\x00\x00")
+
+# --- конвертация в RGB565 x2 (один раз при старте; 0 = прозрачный фон) ---
+inv1aB = disp.mono_rgb(inv1a, 7, 7, GREEN, S)
+inv1bB = disp.mono_rgb(inv1b, 7, 7, GREEN, S)
+inv2aB = disp.mono_rgb(inv2a, 7, 7, YELLOW, S)
+inv2bB = disp.mono_rgb(inv2b, 7, 7, YELLOW, S)
+shipB = disp.mono_rgb(ship, 8, 12, WHITE, S)
+ufoB = disp.mono_rgb(ufo, 12, 8, ORANGE, S)
+logoB = disp.mono_rgb(logo, 128, 64, CYAN, 1)
+
+numbers = {}
+for i in range(10):
+    numbers[str(i)] = disp.mono_rgb(
+        (num0, num1, num2, num3, num4, num5, num6, num7, num8, num9)[i],
+        10, 6, WHITE, S)
+
+sprites = {"inv1a": inv1aB, "inv1b": inv1bB,
+           "inv2a": inv2aB, "inv2b": inv2bB}
+
+# --- параметры раскладки (значения оригинала x2) ---
+spritex = spritey = 7 * S            # 14
+aliencountx = 4
+aliencounty = 4
+alienspacingx = 3 * S
+alienspacingy = 3 * S
+
+SHIP_X = 18 * S                      # 36
+SHOT_START = 32 * S                  # 64
+SHOT_MAX = 130 * S                   # 260
+ALIEN_RESET_X = 20 * S               # 40
+Y_EDGE = 56 * S                      # 112
+UFO_X = 240 - 12 * S               # 216
+SHIP_TOP = 135 - 12 * S           # 111
+
+addy = 3 * S                         # 6: вертикальный шаг волны
+
+aliens = []
+
+
+class Alien(object):
+    def __init__(self, type, x, y):
+        self.visible = True
+        self.type = type
+        self.x = x
+        self.y = y
+        self.origx = x
+        self.origy = y
+
+
+def define_aliens():
+    type = "inv1a"
+    for x in range(1, aliencountx + 1):
+        for y in range(1, aliencounty + 1):
+            # база 232: правый край колонки = 236 (в пределах 240)
+            aliens.append(Alien(
+                type,
+                240 - 8 - ((x * (spritex + alienspacingx)) - spritex),
+                (y * (spritey + alienspacingy)) - spritey))
+        type = "inv2a" if type == "inv1a" else "inv1a"
+
+
+def reset_aliens(visibility):
+    for c in aliens:
+        if visibility:
+            c.visible = True
+        c.x = c.origx
+        c.y = c.origy
+
+
+def main():
+    global addy
+    WIDTH = 240
+    HEIGHT = 135
+    # --- старт ---
+    disp.set_mode(True)   # ландшафт 240x135, как было
+    fb.fill(BLACK)
+    fb.blit(logoB, (WIDTH - 128) // 2, (HEIGHT - 64) // 2, 0)
+    disp.show()
+    sleep(2)
+
+    shippos = 40.0
+    shotx = SHOT_START
+    shoty = int(shippos) + 12
+    loopCount = 0
+    define_aliens()
+    score = 0
+    difficulty = 1
+    showufo = False
+    ufoy = 0
+
+    while True:
+        retro.check_exit()
+        ufoChance = random.randrange(1, 350, 1)
+        if ufoChance == 123 and not showufo:
+            showufo = True
+            ufoy = 0
+        if showufo:
+            ufoy += S
+            if ufoy > 64 * S:
+                showufo = False
+        loopCount += 1
+        fb.fill(BLACK)
+
+        # движение волны пришельцев
+        if loopCount > 16 - difficulty:
+            dropdown = False
+            loopCount = 0
+            for c in aliens:
+                if c.visible:
+                    c.type = ("inv1b" if c.type == "inv1a" else
+                              "inv1a" if c.type == "inv1b" else
+                              "inv2b" if c.type == "inv2a" else "inv2a")
+                    if c.y + addy > Y_EDGE or c.y + addy < 0:
+                        if c.x - (3 * S) < ALIEN_RESET_X:
+                            reset_aliens(False)
+                        dropdown = True
+            if dropdown:
+                addy = -addy
+                for c in aliens:
+                    c.x -= 3 * S
+            else:
+                for c in aliens:
+                    c.y += addy
+
+        # управление кораблём
+        if btn_up.value() == 0:
+            shippos -= 4
+        if btn_down.value() == 0:
+            shippos += 4
+        if shippos < 0:
+            shippos = 0
+        elif shippos > SHIP_TOP:
+            shippos = SHIP_TOP
+
+        shotx += 2 * S
+        foundVisible = False
+
+        # попадание в НЛО
+        if showufo:
+            if shotx > UFO_X:
+                if ufoy <= shoty < ufoy + 12 * S:
+                    score += 50
+                    showufo = False
+                    ufoy = 0
+                    shotx = SHOT_START
+                    shoty = int(shippos) + 12
+
+        # пришельцы: столкновения и отрисовка
+        for c in aliens:
+            if c.visible:
+                if shotx >= c.x and shotx - 4 * S <= c.x + 8 * S:
+                    if c.y < shoty <= c.y + 7 * S:
+                        c.visible = False
+                        score += 10
+                        shotx = SHOT_START
+                        shoty = int(shippos) + 12
+                foundVisible = True
+                fb.blit(sprites[c.type], c.x, c.y, 0)
+
+        if showufo:
+            fb.blit(ufoB, UFO_X, ufoy, 0)
+
+        if shotx > SHOT_MAX:
+            shotx = SHOT_START
+            shoty = int(shippos) + 12
+
+        if not foundVisible:
+            if difficulty < 10:
+                difficulty += 1
+            reset_aliens(True)
+
+        fb.blit(shipB, SHIP_X, int(shippos), 0)
+        fb.line(shotx, shoty, shotx - 4 * S, shoty, RED)
+
+        numcount = 0
+        for ch in str(score):
+            fb.blit(numbers[ch], 2, (numcount * 7 * S) + 2, 0)
+            numcount += 1
+
+        numcount = 0
+        for ch in str(difficulty):
+            fb.blit(numbers[ch], 2, 48 * S + (numcount * 7 * S) + 2, 0)
+            numcount += 1
+
+        disp.show()
